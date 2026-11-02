@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button, Stack } from '@omniviewdev/base-ui';
-import { useResource, useResourceMutations, useResourceTypes } from '@omniviewdev/runtime';
+import { jsonToValue, useResource, useResourceMutations, useResourceTypes, valueToJSON, type ResourceReference, type ResolvedResourceReference } from '@omniviewdev/runtime';
+import { ResourceClient } from '@omniviewdev/runtime/api';
 import { LuPause, LuPlay, LuRefreshCw } from 'react-icons/lu';
 
 import {
@@ -16,7 +17,7 @@ import {
 
 type Props = {
   connectionID: string;
-  resourceKey: string;
+  reference: ResourceReference;
   object: FluxObject;
   /** Table-row layout: only the single-object actions. */
   dense?: boolean;
@@ -32,12 +33,10 @@ const rowStyle: React.CSSProperties = { gap: 6 };
  * through the Kubernetes plugin's connection, so they use the same credentials
  * as every other edit in the cluster view.
  */
-const FluxActions: React.FC<Props> = ({ connectionID, resourceKey, object, dense, onChanged }) => {
-  const { update } = useResourceMutations({ pluginID: KUBERNETES_PLUGIN });
+const FluxActions: React.FC<Props> = ({ connectionID, reference, object, dense, onChanged }) => {
+  const { mutate } = useResourceMutations({ pluginID: KUBERNETES_PLUGIN });
   const [busy, setBusy] = React.useState(false);
 
-  const name = object.metadata?.name ?? '';
-  const namespace = object.metadata?.namespace ?? '';
   const suspended = !!object.spec?.suspend;
   const source = sourceRefOf(object);
 
@@ -45,9 +44,8 @@ const FluxActions: React.FC<Props> = ({ connectionID, resourceKey, object, dense
     async (next: FluxObject) => {
       setBusy(true);
       try {
-        await update({
-          opts: { connectionID, resourceKey, resourceID: name, namespace },
-          input: { input: next },
+        await mutate({
+          route: { connection: connectionID }, reference, operation: 'update', input: jsonToValue(next),
         });
         onChanged?.();
       } catch {
@@ -56,7 +54,7 @@ const FluxActions: React.FC<Props> = ({ connectionID, resourceKey, object, dense
         setBusy(false);
       }
     },
-    [update, connectionID, resourceKey, name, namespace, onChanged],
+    [mutate, connectionID, reference, onChanged],
   );
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
@@ -108,8 +106,8 @@ type WithSourceProps = {
 
 /** Asks the source to fetch first, then reconciles the object that uses it. */
 const ReconcileWithSource: React.FC<WithSourceProps> = ({ connectionID, source, disabled, onSourceRequested }) => {
-  const { types } = useResourceTypes({ pluginID: KUBERNETES_PLUGIN, connectionID });
-  const sourceKey = resolveFluxKey(types.data, source.kind);
+  const { resourceTypes } = useResourceTypes({ pluginID: KUBERNETES_PLUGIN, route: { connection: connectionID } });
+  const sourceKey = resolveFluxKey(resourceTypes.data, source.kind);
 
   if (!sourceKey) return null;
 
@@ -131,21 +129,31 @@ const ReconcileWithSourceButton: React.FC<WithSourceProps & { sourceKey: string 
   disabled,
   onSourceRequested,
 }) => {
-  const { resource, update } = useResource({
+  const [resolved, setResolved] = React.useState<ResolvedResourceReference>();
+  React.useEffect(() => {
+    let active = true;
+    setResolved(undefined);
+    void ResourceClient.ResolveReference(KUBERNETES_PLUGIN, {
+      route: { connection: connectionID }, type: sourceKey, id: source.name,
+      scope: [{ dimension: 'namespace', value: source.namespace }],
+    }).then((value) => { if (active) setResolved(value); }).catch(() => {});
+    return () => { active = false; };
+  }, [connectionID, sourceKey, source.name, source.namespace]);
+  const { resource, mutate } = useResource({
     pluginID: KUBERNETES_PLUGIN,
-    connectionID,
-    resourceKey: sourceKey,
-    resourceID: source.name,
-    namespace: source.namespace,
+    request: resolved && {
+      targetId: resolved.targetId,
+      request: { route: resolved.route, reference: resolved.reference, representation: resolved.representation },
+    },
   });
   const [busy, setBusy] = React.useState(false);
-  const sourceObject = resource.data?.result as FluxObject | undefined;
+  const sourceObject = resource.data ? valueToJSON(resource.data.record.body) as FluxObject : undefined;
 
   const run = async () => {
     if (!sourceObject) return;
     setBusy(true);
     try {
-      await update({ input: withReconcileRequest(sourceObject) });
+      await mutate({ operation: 'update', input: jsonToValue(withReconcileRequest(sourceObject)) });
       await onSourceRequested();
     } catch {
       // The mutation hook already reports the failure to the user.

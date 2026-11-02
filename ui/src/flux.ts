@@ -15,51 +15,33 @@ export const OVERVIEW_KINDS: string[] = OVERVIEW_GROUPS.flatMap((g) => g.kinds);
 
 export const RECONCILE_ANNOTATION = 'reconcile.fluxcd.io/requestedAt';
 
-/** Flux API groups, their kinds, and every served version we provide a panel for. */
-const FLUX_APIS: Record<string, Record<string, string[]>> = {
-  'kustomize.toolkit.fluxcd.io': {
-    Kustomization: ['v1', 'v1beta2', 'v1beta1'],
-  },
-  'helm.toolkit.fluxcd.io': {
-    HelmRelease: ['v2', 'v2beta2', 'v2beta1'],
-  },
-  'source.toolkit.fluxcd.io': {
-    GitRepository: ['v1', 'v1beta2'],
-    HelmRepository: ['v1', 'v1beta2'],
-    HelmChart: ['v1', 'v1beta2'],
-    OCIRepository: ['v1', 'v1beta2'],
-    Bucket: ['v1', 'v1beta2'],
-  },
-  'notification.toolkit.fluxcd.io': {
-    Alert: ['v1beta3'],
-    Provider: ['v1beta3'],
-    Receiver: ['v1', 'v1beta2'],
-  },
-  'image.toolkit.fluxcd.io': {
-    ImageRepository: ['v1', 'v1beta2', 'v1beta1'],
-    ImagePolicy: ['v1', 'v1beta2', 'v1beta1'],
-    ImageUpdateAutomation: ['v1', 'v1beta2', 'v1beta1'],
-  },
+/** Flux kinds and their version-independent Kubernetes type IDs. */
+const FLUX_APIS: Record<string, string> = {
+  Kustomization: 'k8s:kustomize.toolkit.fluxcd.io/kustomizations',
+  HelmRelease: 'k8s:helm.toolkit.fluxcd.io/helmreleases',
+  GitRepository: 'k8s:source.toolkit.fluxcd.io/gitrepositories',
+  OCIRepository: 'k8s:source.toolkit.fluxcd.io/ocirepositories',
+  HelmRepository: 'k8s:source.toolkit.fluxcd.io/helmrepositories',
+  HelmChart: 'k8s:source.toolkit.fluxcd.io/helmcharts',
+  Bucket: 'k8s:source.toolkit.fluxcd.io/buckets',
+  Alert: 'k8s:notification.toolkit.fluxcd.io/alerts',
+  Provider: 'k8s:notification.toolkit.fluxcd.io/providers',
+  Receiver: 'k8s:notification.toolkit.fluxcd.io/receivers',
+  ImageRepository: 'k8s:image.toolkit.fluxcd.io/imagerepositories',
+  ImagePolicy: 'k8s:image.toolkit.fluxcd.io/imagepolicies',
+  ImageUpdateAutomation: 'k8s:image.toolkit.fluxcd.io/imageupdateautomations',
 };
 
-export const FLUX_RESOURCE_KEYS: string[] = Object.entries(FLUX_APIS).flatMap(([group, kinds]) =>
-  Object.entries(kinds).flatMap(([kind, versions]) => versions.map((v) => `${group}::${v}::${kind}`)),
-);
+export const FLUX_RESOURCE_KEYS = Object.values(FLUX_APIS);
+export const fluxKindForType = (type: string): string | undefined =>
+  Object.keys(FLUX_APIS).find((kind) => FLUX_APIS[kind] === type);
 
-const groupOf = (kind: string): string | undefined =>
-  Object.keys(FLUX_APIS).find((group) => kind in FLUX_APIS[group]);
-
-/**
- * Pick the resource key the cluster actually serves for a Flux kind, preferring
- * the newest version. Returns undefined when the kind is not installed.
- */
 export const resolveFluxKey = (
-  available: Record<string, unknown> | undefined,
+  available: readonly { type: string }[] | undefined,
   kind: string,
 ): string | undefined => {
-  const group = groupOf(kind);
-  if (!group || !available) return undefined;
-  return FLUX_APIS[group][kind].map((v) => `${group}::${v}::${kind}`).find((key) => key in available);
+  const type = FLUX_APIS[kind];
+  return type && available?.some((entry) => entry.type === type) ? type : undefined;
 };
 
 export type FluxCondition = {
@@ -159,14 +141,14 @@ export const shortRevision = (rev: string): string => {
 
 /** Kinds outside Flux that Flux objects commonly point at. */
 const CORE_KEYS: Record<string, string> = {
-  Secret: 'core::v1::Secret',
-  ConfigMap: 'core::v1::ConfigMap',
-  ServiceAccount: 'core::v1::ServiceAccount',
+  Secret: 'k8s:/secrets',
+  ConfigMap: 'k8s:/configmaps',
+  ServiceAccount: 'k8s:/serviceaccounts',
 };
 
 /** Resource key for a referenced kind, Flux or core, if the cluster serves it. */
-export const resolveRefKey = (available: Record<string, unknown> | undefined, kind: string): string | undefined =>
-  resolveFluxKey(available, kind) ?? (available && CORE_KEYS[kind] in available ? CORE_KEYS[kind] : undefined);
+export const resolveRefKey = (available: readonly { type: string }[] | undefined, kind: string): string | undefined =>
+  resolveFluxKey(available, kind) ?? (available?.some((entry) => entry.type === CORE_KEYS[kind]) ? CORE_KEYS[kind] : undefined);
 
 export const formatBytes = (bytes?: number): string | undefined => {
   if (bytes === undefined) return undefined;

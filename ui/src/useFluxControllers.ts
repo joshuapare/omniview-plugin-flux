@@ -1,8 +1,8 @@
-import { useResources } from '@omniviewdev/runtime';
+import { useResources, useResolvedResourceTarget, valueToJSON } from '@omniviewdev/runtime';
 
 import { KUBERNETES_PLUGIN } from './flux';
 
-const DEPLOYMENT_KEY = 'apps::v1::Deployment';
+const DEPLOYMENT_KEY = 'k8s:apps/deployments';
 
 /** Controller Deployments as `flux install` / `flux bootstrap` name them. */
 const CONTROLLER_NAMES = [
@@ -48,14 +48,17 @@ const isController = (d: Deployment): boolean =>
  * and the distribution version they were installed from when it is labelled.
  */
 export const useFluxControllers = (connectionID: string) => {
+  const target = useResolvedResourceTarget({
+    pluginID: KUBERNETES_PLUGIN, route: { connection: connectionID }, type: DEPLOYMENT_KEY,
+  });
   const { resources } = useResources({
     pluginID: KUBERNETES_PLUGIN,
-    connectionID,
-    resourceKey: DEPLOYMENT_KEY,
-    idAccessor: 'metadata.uid',
+    collection: true,
+    request: target.data && { targetId: target.data.targetId, request: { target: target.data.target, pageSize: 256 } },
+    enabled: !!target.data,
   });
 
-  const deployments = ((resources.data?.result ?? []) as Deployment[]).filter(isController);
+  const deployments = (resources.data?.records ?? []).map(({ record }) => valueToJSON(record.body) as Deployment).filter(isController);
   const rank = (name: string) => {
     const index = CONTROLLER_NAMES.indexOf(name);
     return index < 0 ? CONTROLLER_NAMES.length : index;
