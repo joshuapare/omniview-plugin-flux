@@ -1,6 +1,7 @@
 import React from 'react';
 import { Chip, Separator, Stack, Text } from '@omniviewdev/base-ui';
 import { useResourceTypes, useRightDrawer } from '@omniviewdev/runtime';
+import { ResourceClient } from '@omniviewdev/runtime/api';
 
 import { KUBERNETES_PLUGIN, resolveRefKey, type FluxCondition, type FluxObject } from '../../flux';
 import styles from './parts.module.css';
@@ -72,9 +73,9 @@ type RefLinkProps = {
 
 /** A referenced object; opens its side panel when the cluster serves the kind. */
 export const RefLink: React.FC<RefLinkProps> = ({ connectionID, kind, name, namespace, home, showKind }) => {
-  const { types } = useResourceTypes({ pluginID: KUBERNETES_PLUGIN, connectionID });
+  const { resourceTypes } = useResourceTypes({ pluginID: KUBERNETES_PLUGIN, route: { connection: connectionID } });
   const { showResourceSidebar } = useRightDrawer();
-  const resourceKey = resolveRefKey(types.data, kind);
+  const resourceKey = resolveRefKey(resourceTypes.data, kind);
   const label = `${showKind ? `${kind}/` : ''}${name}${home !== undefined && namespace !== home ? ` (${namespace})` : ''}`;
 
   // Wildcards in event sources match many objects, so there is nothing to open.
@@ -90,16 +91,14 @@ export const RefLink: React.FC<RefLinkProps> = ({ connectionID, kind, name, name
       onKeyDown={(e) => {
         if (e.key === 'Enter') (e.currentTarget as HTMLElement).click();
       }}
-      onClick={() =>
-        showResourceSidebar({
-          pluginID: KUBERNETES_PLUGIN,
-          connectionID,
-          resourceKey,
-          resourceID: name,
-          resourceName: name,
-          namespace,
-        })
-      }
+      onClick={() => {
+        void ResourceClient.ResolveReference(KUBERNETES_PLUGIN, {
+          route: { connection: connectionID }, type: resourceKey, id: name,
+          scope: [{ dimension: 'namespace', value: namespace }],
+        }).then((resolved) => showResourceSidebar({
+          pluginID: KUBERNETES_PLUGIN, ...resolved, resourceName: name,
+        }));
+      }}
     >
       {label}
     </span>

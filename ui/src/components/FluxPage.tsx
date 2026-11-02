@@ -229,7 +229,7 @@ const FluxTable: React.FC<{ connectionID: string; rows: Row[]; hideKind?: boolea
 
 const FluxRow: React.FC<{ connectionID: string; row: Row; hideKind?: boolean }> = ({ connectionID, row, hideKind }) => {
   const { showResourceSidebar } = useRightDrawer();
-  const { object, kind, resourceKey, state } = row;
+  const { object, kind, state, record } = row;
   const ready = readyCondition(object);
   const revision = fluxRevision(object);
   const name = object.metadata?.name ?? '';
@@ -242,11 +242,12 @@ const FluxRow: React.FC<{ connectionID: string; row: Row; hideKind?: boolean }> 
       onClick={() =>
         showResourceSidebar({
           pluginID: KUBERNETES_PLUGIN,
-          connectionID,
-          resourceKey,
-          resourceID: name,
+          route: record.route,
+          targetId: record.targetId,
+          reference: record.record.reference,
+          representation: record.record.representation.id,
+          record,
           resourceName: name,
-          namespace,
         })
       }
     >
@@ -266,7 +267,7 @@ const FluxRow: React.FC<{ connectionID: string; row: Row; hideKind?: boolean }> 
         )}
       </Table.Cell>
       <Table.Cell align="right">
-        <FluxActions dense connectionID={connectionID} resourceKey={resourceKey} object={object} />
+        <FluxActions dense connectionID={connectionID} reference={record.record.reference} object={object} />
       </Table.Cell>
     </Table.Row>
   );

@@ -19,8 +19,7 @@ export const plugin = new PluginWindow().registerExtensionPoints(extensionPoints
  * The loader picks these up and calls store.register() for each.
  */
 export const extensionRegistrations: ExtensionRegistration<any>[] = [
-  // The host matches side panels on exactly one { pluginId, resourceKey } pair,
-  // so each served Flux version gets its own registration.
+  // The host matches side panels on one plugin and resource type pair.
   ...FLUX_RESOURCE_KEYS.map((resourceKey) => ({
     extensionPointId: 'omniview/resource/sidebar/infopanel',
     registration: {

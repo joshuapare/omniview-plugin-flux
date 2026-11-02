@@ -1,6 +1,6 @@
 import React from 'react';
 import { Chip, Stack, Text } from '@omniviewdev/base-ui';
-import { useResource, type DrawerContext } from '@omniviewdev/runtime';
+import { useResource, valueToJSON, type DrawerContext } from '@omniviewdev/runtime';
 import { LuBox, LuClock } from 'react-icons/lu';
 
 import FluxActions from './FluxActions';
@@ -18,6 +18,7 @@ import {
 import {
   KUBERNETES_PLUGIN,
   STATE_LABEL,
+  fluxKindForType,
   fluxState,
   isStatic,
   readyCondition,
@@ -66,22 +67,22 @@ const iconStyle: React.CSSProperties = {
  * the middle is specific to the kind.
  */
 const FluxResourceSidebar: React.FC<Props> = ({ ctx }) => {
-  const resourceKey = ctx.resource?.key ?? '';
-  const connectionID = ctx.resource?.connectionID ?? '';
+  const resource = ctx.resource;
+  const connectionID = resource?.route.connection ?? '';
   const initial = (ctx.data ?? {}) as FluxObject;
 
   // The drawer hands us a snapshot; follow the live object so status and the
   // suspend state update after an action without reopening the panel.
   const { resource: live } = useResource({
     pluginID: KUBERNETES_PLUGIN,
-    connectionID,
-    resourceKey,
-    resourceID: initial.metadata?.name ?? ctx.resource?.id ?? '',
-    namespace: initial.metadata?.namespace ?? '',
+    request: resource && {
+      targetId: resource.targetId,
+      request: { route: resource.route, reference: resource.reference, representation: resource.representation },
+    },
   });
-  const kind = resourceKey.split('::').pop() ?? resourceKey;
+  const kind = initial.kind ?? fluxKindForType(resource?.reference.address.type ?? '') ?? '';
   // Lists may hand over objects without their kind; the panel bodies rely on it.
-  const data: FluxObject = { ...((live.data?.result as FluxObject | undefined) ?? initial), kind };
+  const data: FluxObject = { ...(live.data ? valueToJSON(live.data.record.body) as FluxObject : initial), kind };
 
   // Single-object queries are not watched, so poll briefly after an action to
   // pick up the controller's response.
@@ -117,8 +118,8 @@ const FluxResourceSidebar: React.FC<Props> = ({ ctx }) => {
         <Text size="xs" tone="muted">{kind}</Text>
       </Stack>
 
-      {connectionID && name && (
-        <FluxActions connectionID={connectionID} resourceKey={resourceKey} object={data} onChanged={onChanged} />
+      {resource && connectionID && name && (
+        <FluxActions connectionID={connectionID} reference={resource.reference} object={data} onChanged={onChanged} />
       )}
 
       <Section title="Status">
