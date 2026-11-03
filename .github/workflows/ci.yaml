@@ -34,3 +34,6 @@ jobs:
       # Same target the release uses, so packaging breaks here first.
       - name: Build and package
         run: make package PLATFORMS=linux_amd64
+
+      - name: Test frontend
+        run: cd ui && pnpm test
