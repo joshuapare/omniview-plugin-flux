@@ -34,7 +34,7 @@ export const useFluxRows = (connectionID: string, kinds: string[]) => {
   const rows: Row[] = served
     .flatMap(({ kind, resourceKey }) =>
       // Listed objects may come without their kind, which the state rules rely on.
-      (results[`${connectionID}/${resourceKey}`]?.objects ?? []).filter((record) => record.route.connection === connectionID).map((record) => {
+      (results[`${connectionID}/${resourceKey}`]?.error ? [] : results[`${connectionID}/${resourceKey}`]?.objects ?? []).filter((record) => record.route.connection === connectionID).map((record) => {
         const object = { ...(valueToJSON(record.record.body) as FluxObject), kind };
         return { resourceKey, kind, object, state: fluxState(object), record };
       }),
@@ -51,11 +51,15 @@ export const useFluxRows = (connectionID: string, kinds: string[]) => {
     <KindLoader key={`${connectionID}/${resourceKey}`} kind={kind} resourceKey={resourceKey} connectionID={connectionID} onResult={onResult} />
   ));
   const activeResults = served.map(({ resourceKey }) => results[`${connectionID}/${resourceKey}`]);
-  const error = resourceTypes.error ?? activeResults.find((result) => result?.error)?.error;
+  const errors = served.flatMap(({ kind }, i) =>
+    activeResults[i]?.error ? [{ kind, error: activeResults[i].error }] : [],
+  );
+  const error = resourceTypes.error ?? (errors.length === served.length && served.length > 0 ? errors[0].error : undefined);
 
   return {
     loading: resourceTypes.isLoading || served.some((_, i) => !activeResults[i] || activeResults[i].loading),
     error,
+    errors,
     installed: served.length > 0,
     rows,
     loaders,

@@ -50,7 +50,7 @@ const nowrapStyle: React.CSSProperties = { whiteSpace: 'nowrap' };
 const FluxPage: React.FC<Props> = ({ connectionID, subPath }) => {
   const subPage = FLUX_SUB_PAGES.find((p) => p.path === subPath);
   const kinds = React.useMemo(() => (subPage ? [subPage.kind] : OVERVIEW_KINDS), [subPage]);
-  const { loading, error, installed, rows, loaders } = useFluxRows(connectionID, kinds);
+  const { loading, error, errors, installed, rows, loaders } = useFluxRows(connectionID, kinds);
 
   let body: React.ReactNode;
   if (error) {
@@ -62,12 +62,19 @@ const FluxPage: React.FC<Props> = ({ connectionID, subPath }) => {
   } else if (subPage) {
     body = <KindList connectionID={connectionID} label={subPage.label} rows={rows} />;
   } else {
-    body = <Overview connectionID={connectionID} rows={rows} />;
+    body = <Overview connectionID={connectionID} rows={rows} partial={errors.length > 0} />;
   }
 
   return (
     <Stack direction="column" spacing={0} style={pageStyle}>
       {loaders}
+      {!error && !loading && errors.length > 0 && (
+        <Banner color="warning" variant="soft">
+          <Banner.Content>
+            {`Some Flux resources could not be loaded: ${errors.map(({ kind, error: cause }) => `${kind}: ${parseAppError(cause).detail}`).join('; ')}. Counts are partial.`}
+          </Banner.Content>
+        </Banner>
+      )}
       {body}
     </Stack>
   );
@@ -123,7 +130,7 @@ const Controllers: React.FC<{ connectionID: string }> = ({ connectionID }) => {
   );
 };
 
-const Overview: React.FC<{ connectionID: string; rows: Row[] }> = ({ connectionID, rows }) => {
+const Overview: React.FC<{ connectionID: string; rows: Row[]; partial: boolean }> = ({ connectionID, rows, partial }) => {
   const { navigate } = usePluginRouter();
   const notReady = rows.filter((row) => row.state !== 'ready');
 
@@ -163,7 +170,7 @@ const Overview: React.FC<{ connectionID: string; rows: Row[] }> = ({ connectionI
       <Text as="div" size="sm" weight="medium" tone="muted">Needs attention ({notReady.length})</Text>
       {notReady.length === 0 ? (
         <Text as="div" tone="muted" style={centeredStyle}>
-          {rows.length === 0 ? 'No Flux resources found.' : `All ${rows.length} Flux resources are ready.`}
+          {rows.length === 0 ? (partial ? 'No readable Flux resources found.' : 'No Flux resources found.') : `All ${rows.length} ${partial ? 'readable ' : ''}Flux resources are ready.`}
         </Text>
       ) : (
         <FluxTable connectionID={connectionID} rows={notReady} />

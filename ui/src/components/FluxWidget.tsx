@@ -1,4 +1,5 @@
 import React from 'react';
+import { Banner } from '@omniviewdev/base-ui';
 import { parseAppError, usePluginRouter } from '@omniviewdev/runtime';
 import { LuGitBranch } from 'react-icons/lu';
 
@@ -21,7 +22,7 @@ const ICON = <LuGitBranch size={14} />;
  */
 const FluxWidget: React.FC<Props> = ({ connectionID }) => {
   const { navigate } = usePluginRouter();
-  const { loading, error, installed, rows, loaders } = useFluxRows(connectionID, OVERVIEW_KINDS);
+  const { loading, error, errors, installed, rows, loaders } = useFluxRows(connectionID, OVERVIEW_KINDS);
   const { known, controllers } = useFluxControllers(connectionID);
 
   if (error) return (
@@ -47,7 +48,7 @@ const FluxWidget: React.FC<Props> = ({ connectionID }) => {
   ].filter(Boolean);
 
   let color: StatCardColor = 'brand';
-  if (failing > 0 || controllersDown > 0 || noControllers) color = 'danger';
+  if (errors.length > 0 || failing > 0 || controllersDown > 0 || noControllers) color = 'danger';
   else if (suspended > 0) color = 'warning';
 
   return (
@@ -56,7 +57,16 @@ const FluxWidget: React.FC<Props> = ({ connectionID }) => {
       <StatCard
         value={total}
         label="Flux"
-        description={parts.length > 0 ? parts.join(', ') : 'No Flux resources'}
+        description={errors.length > 0 ? (
+          <>
+            {parts.length > 0 ? parts.join(', ') : 'No readable Flux resources'}
+            <Banner color="warning" variant="soft">
+              <Banner.Content>
+                {`Partial counts; failed to load ${errors.map(({ kind, error: cause }) => `${kind}: ${parseAppError(cause).detail}`).join('; ')}`}
+              </Banner.Content>
+            </Banner>
+          </>
+        ) : parts.length > 0 ? parts.join(', ') : 'No Flux resources'}
         icon={ICON}
         color={color}
         onClick={() => navigate(`/cluster/${connectionID}/resources/page/${FLUX_PAGE_PATH}`)}
