@@ -1,5 +1,5 @@
 import React from 'react';
-import { usePluginRouter } from '@omniviewdev/runtime';
+import { parseAppError, usePluginRouter } from '@omniviewdev/runtime';
 import { LuGitBranch } from 'react-icons/lu';
 
 import StatCard, { type StatCardColor } from './StatCard';
@@ -21,10 +21,17 @@ const ICON = <LuGitBranch size={14} />;
  */
 const FluxWidget: React.FC<Props> = ({ connectionID }) => {
   const { navigate } = usePluginRouter();
-  const { loading, installed, rows, loaders } = useFluxRows(connectionID, OVERVIEW_KINDS);
+  const { loading, error, installed, rows, loaders } = useFluxRows(connectionID, OVERVIEW_KINDS);
   const { known, controllers } = useFluxControllers(connectionID);
 
-  if (loading || !installed) return null;
+  if (error) return (
+    <div style={{ height: '100%' }}>
+      {loaders}
+      <StatCard value="—" label="Flux" description={parseAppError(error).detail} icon={ICON} color="danger"
+        onClick={() => navigate(`/cluster/${connectionID}/resources/page/${FLUX_PAGE_PATH}`)} />
+    </div>
+  );
+  if (loading || !installed) return <>{loaders}</>;
 
   const { total, ready, failing, pending, suspended } = countStates(rows);
   const controllersDown = controllers.filter((c) => !c.ready).length;

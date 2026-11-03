@@ -1,6 +1,6 @@
 import React from 'react';
 import { Banner, Chip, SegmentedControl, Stack, Table, Text } from '@omniviewdev/base-ui';
-import { usePluginRouter, useRightDrawer } from '@omniviewdev/runtime';
+import { parseAppError, usePluginRouter, useRightDrawer } from '@omniviewdev/runtime';
 
 import FluxActions from './FluxActions';
 import {
@@ -50,10 +50,12 @@ const nowrapStyle: React.CSSProperties = { whiteSpace: 'nowrap' };
 const FluxPage: React.FC<Props> = ({ connectionID, subPath }) => {
   const subPage = FLUX_SUB_PAGES.find((p) => p.path === subPath);
   const kinds = React.useMemo(() => (subPage ? [subPage.kind] : OVERVIEW_KINDS), [subPage]);
-  const { loading, installed, rows, loaders } = useFluxRows(connectionID, kinds);
+  const { loading, error, installed, rows, loaders } = useFluxRows(connectionID, kinds);
 
   let body: React.ReactNode;
-  if (loading) {
+  if (error) {
+    body = <Text as="div" tone="danger" style={centeredStyle}>{parseAppError(error).detail}</Text>;
+  } else if (loading) {
     body = <Text as="div" tone="muted" style={centeredStyle}>Loading…</Text>;
   } else if (!installed) {
     body = <NotInstalled kind={subPage?.kind} />;
