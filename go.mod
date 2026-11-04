@@ -3,7 +3,7 @@ module github.com/mononendev/omniview-plugin-flux
 go 1.25.0
 
 require (
-	github.com/omniviewdev/plugin-sdk v0.14.4-0.20261103175619-d576a1516b29
+	github.com/omniviewdev/plugin-sdk v0.14.4-0.20261104022932-57f8b8bf4f76
 	google.golang.org/grpc v1.79.2
 )
 
