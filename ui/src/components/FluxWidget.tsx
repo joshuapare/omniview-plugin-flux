@@ -15,6 +15,8 @@ type Props = {
 
 const ICON = <LuGitBranch size={14} />;
 
+const widgetStyle: React.CSSProperties = { height: 160, overflow: 'auto' };
+
 /**
  * Flux health on the cluster dashboard: how many Flux resources are ready,
  * failing or suspended. Clicking it opens the Flux page. Renders nothing on
@@ -24,15 +26,27 @@ const FluxWidget: React.FC<Props> = ({ connectionID }) => {
   const { navigate } = usePluginRouter();
   const { loading, error, errors, installed, rows, loaders } = useFluxRows(connectionID, OVERVIEW_KINDS);
   const { known, controllers } = useFluxControllers(connectionID);
+  const [lastInstalledConnection, setLastInstalledConnection] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (installed) setLastInstalledConnection(connectionID);
+  }, [connectionID, installed]);
 
   if (error) return (
-    <div style={{ height: '100%' }}>
+    <div style={widgetStyle}>
       {loaders}
       <StatCard value="—" label="Flux" description={parseAppError(error).detail} icon={ICON} color="danger"
         onClick={() => navigate(`/cluster/${connectionID}/resources/page/${FLUX_PAGE_PATH}`)} />
     </div>
   );
-  if (loading || !installed) return <>{loaders}</>;
+  if (!installed && !(loading && lastInstalledConnection === connectionID)) return <>{loaders}</>;
+  if (loading) return (
+    <div style={widgetStyle}>
+      {loaders}
+      <StatCard value="—" label="Flux" description="Loading Flux resources" icon={ICON}
+        onClick={() => navigate(`/cluster/${connectionID}/resources/page/${FLUX_PAGE_PATH}`)} />
+    </div>
+  );
 
   const { total, ready, failing, pending, suspended } = countStates(rows);
   const controllersDown = controllers.filter((c) => !c.ready).length;
@@ -52,7 +66,7 @@ const FluxWidget: React.FC<Props> = ({ connectionID }) => {
   else if (suspended > 0) color = 'warning';
 
   return (
-    <div style={{ height: '100%' }}>
+    <div style={widgetStyle}>
       {loaders}
       <StatCard
         value={total}

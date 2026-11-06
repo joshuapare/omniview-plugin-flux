@@ -71,4 +71,21 @@ describe('Flux resource failures', () => {
     expect(await screen.findByText(/HelmRelease: helm denied/)).toBeTruthy();
     expect(screen.getByText(view === 'page' ? 'All 1 readable Flux resources are ready.' : '1 ready')).toBeTruthy();
   });
+
+  it('keeps the dashboard card visible during a resource reload', async () => {
+    const view = render(<FluxWidget pluginID="flux" connectionID="cluster" />);
+    expect(await screen.findByText('No Flux resources')).toBeTruthy();
+
+    state.resources = { isLoading: true };
+    view.rerender(<FluxWidget pluginID="flux" connectionID="cluster" />);
+    expect(screen.getByText('Loading Flux resources')).toBeTruthy();
+
+    state.catalog = { isLoading: true };
+    view.rerender(<FluxWidget pluginID="flux" connectionID="cluster" />);
+    expect(screen.getByText('Loading Flux resources')).toBeTruthy();
+
+    state.catalog = { data: [], isLoading: false };
+    view.rerender(<FluxWidget pluginID="flux" connectionID="cluster" />);
+    expect(screen.queryByText('Loading Flux resources')).toBeNull();
+  });
 });
